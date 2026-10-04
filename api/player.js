@@ -1,5 +1,6 @@
 export default async function handler(req, res) {
   const { uid } = req.query;
+  const apiKey = process.env.GAMESKINBO_API_KEY;
 
   if (!uid) {
     return res.status(400).json({
@@ -15,46 +16,57 @@ export default async function handler(req, res) {
     });
   }
 
+  if (!apiKey) {
+    return res.status(500).json({
+      success: false,
+      message: "GAMESKINBO_API_KEY is missing in Vercel"
+    });
+  }
+
   try {
     const response = await fetch(
       `https://api.gameskinbo.com/ff-info/get?uid=${encodeURIComponent(uid)}&region=BD`,
       {
         method: "GET",
         headers: {
-          "x-api-key": process.env.GAMESKINBO_API_KEY
+          "x-api-key": apiKey,
+          "Accept": "application/json"
         }
       }
     );
 
-    const data = await response.json();
+    const text = await response.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
+    }
 
     if (!response.ok) {
       return res.status(response.status).json({
         success: false,
-        message: data.error || "Player lookup failed"
+        upstreamStatus: response.status,
+        message: "GamesKinbo API error",
+        response: data
       });
     }
 
-    const playerName = data?.AccountInfo?.AccountName;
-
-    if (!playerName) {
-      return res.status(404).json({
-        success: false,
-        message: "Player name not found"
-      });
-    }
+    const name = data?.AccountInfo?.AccountName;
 
     return res.status(200).json({
       success: true,
       uid: uid,
-      name: playerName,
+      name: name || null,
       region: data?.AccountInfo?.AccountRegion || "BD"
     });
 
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Server error"
+      message: "Fetch failed",
+      error: error.message
     });
   }
 }
