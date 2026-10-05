@@ -1,16 +1,31 @@
 export default async function handler(req, res) {
   const { uid } = req.query;
+  const apiKey = process.env.FREEFIRE_API_KEY;
 
-  if (!uid || !/^\d+$/.test(uid)) {
+  if (!uid) {
     return res.status(400).json({
       success: false,
-      message: "Valid UID is required"
+      message: "UID is required"
+    });
+  }
+
+  if (!apiKey) {
+    return res.status(500).json({
+      success: false,
+      message: "FREEFIRE_API_KEY is missing"
     });
   }
 
   try {
     const response = await fetch(
-      `https://api2.nftoken.info/get?uid=${encodeURIComponent(uid)}&region=BD`
+      `https://api.gameskinbo.com/ff-info/get?uid=${encodeURIComponent(uid)}&region=BD`,
+      {
+        method: "GET",
+        headers: {
+          "x-api-key": apiKey,
+          "Accept": "application/json"
+        }
+      }
     );
 
     const data = await response.json();
@@ -18,22 +33,24 @@ export default async function handler(req, res) {
     if (!response.ok) {
       return res.status(response.status).json({
         success: false,
-        message: "Player lookup failed",
+        message: "GamesKinbo API error",
+        status: response.status,
         response: data
       });
     }
 
     return res.status(200).json({
       success: true,
-      uid,
-      name: data?.AccountInfo?.AccountName || data?.basicInfo?.nickname || null,
-      data
+      uid: uid,
+      name: data?.AccountInfo?.AccountName || null,
+      region: data?.AccountInfo?.AccountRegion || "BD"
     });
 
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: "Request failed",
+      error: error.message
     });
   }
 }
